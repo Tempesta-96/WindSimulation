@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {roomEnd,roomFits,snapPoint,wallEnd} from '../web/editor.js';
+import {validatePlan,contribution} from '../web/model.js';
+const plan={width:8,depth:6,elements:[{type:'wall',a:{x:4,y:0},b:{x:4,y:6}}]};
+test('walls snap to horizontal or vertical and can be drawn freely',()=>{assert.deepEqual(wallEnd({x:1,y:1},{x:3.8,y:1.3},plan),{x:4,y:1});assert.deepEqual(wallEnd({x:1,y:1},{x:1.2,y:4},plan),{x:1,y:4});assert.deepEqual(wallEnd({x:1,y:1},{x:2,y:2},plan,false,false),{x:2,y:2});});
+test('room corners snap to existing and exterior walls',()=>{assert.deepEqual(roomEnd({x:1,y:1},{x:3.8,y:5.8},plan),{x:4,y:6});assert.deepEqual(snapPoint({x:3.8,y:2},plan),{x:4,y:2});});
+test('rectangle can share walls and its interior remains usable',()=>{const room={type:'room',a:{x:0,y:0},b:{x:4,y:3}};assert.ok(roomFits(room,plan));assert.doesNotThrow(()=>validatePlan({...plan,elements:[...plan.elements,room]}));});
+test('resizing clamps square and rectangle to the house',()=>{const a={x:1,y:1},b=roomEnd(a,{x:10,y:8},plan,{square:true,snap:false});assert.ok(roomFits({a,b},plan));assert.ok(Math.abs((b.x-a.x)-(b.y-a.y))<1e-8);assert.ok(b.y<=6+1e-8);});
+test('rooms cannot bridge concave exterior cutouts',()=>{const l={width:8,depth:6,elements:[],boundary:[{x:0,y:0},{x:8,y:0},{x:8,y:2},{x:3,y:2},{x:3,y:6},{x:0,y:6}]},a={x:1,y:1};assert.equal(roomFits({a,b:{x:6,y:5}},l),false);const b=roomEnd(a,{x:6,y:5},l,{snap:false});assert.ok(roomFits({a,b},l));assert.throws(()=>validatePlan({...l,elements:[{type:'room',a,b:{x:6,y:5}}]}));});
+test('room walls block airflow but aligned door opens a passage',()=>{const room={type:'room',a:{x:1,y:1},b:{x:4,y:4}},p={width:8,depth:6,elements:[room]},fan={type:'ceiling',x:3,y:2.5},target={x:5,y:2.5};assert.equal(contribution(fan,target,4,p),0);p.elements.push({type:'door',a:{x:4,y:2},b:{x:4,y:3}});assert.ok(contribution(fan,target,4,p)>0);});

@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {analyze,contribution,validatePlan,validPoint,intersects,inside,floorArea} from '../web/model.js';
+const empty={width:8,depth:6,elements:[]},config={ceiling:1,standing:1,reach:4,even:70,cooling:80,ventilation:60};
+test('walls block fan influence',()=>{const p={...empty,elements:[{type:'wall',a:{x:4,y:0},b:{x:4,y:6}}]};assert.equal(contribution({x:3,y:3,type:'ceiling'},{x:5,y:3},4,p),0);assert.ok(contribution({x:3,y:3,type:'ceiling'},{x:2,y:3},4,p)>0);});
+test('standing fan points forward',()=>{const f={x:4,y:3,type:'standing',angle:0};assert.ok(contribution(f,{x:5,y:3},4,empty)>0);assert.equal(contribution(f,{x:3,y:3},4,empty),0);});
+test('includes ceiling fan and avoids furniture',()=>{const p={...empty,elements:[{type:'furniture',a:{x:2,y:2},b:{x:5,y:4}}]},r=analyze(p,config);assert.equal(r.fans.length,2);assert.equal(r.fans[0].type,'ceiling');r.fans.forEach(f=>assert.ok(validPoint(f,p,.35)));assert.equal(r.cooling,null);assert.equal(r.ventilation,null);});
+test('occupied areas and openings produce goal scores',()=>{const p={...empty,elements:[{type:'occupied',a:{x:3,y:3},b:{x:3,y:3}},{type:'window',a:{x:0,y:2},b:{x:0,y:3}},{type:'door',a:{x:8,y:2},b:{x:8,y:3}}]},r=analyze(p,config);assert.notEqual(r.cooling,null);assert.notEqual(r.ventilation,null);assert.ok(r.coverage>=0&&r.coverage<=100);});
+test('invalid imported plans are rejected',()=>{assert.throws(()=>validatePlan({...empty,width:Infinity}));assert.throws(()=>validatePlan({...empty,elements:[{type:'wall',a:{x:9,y:0},b:{x:2,y:2}}]}));assert.deepEqual(validatePlan(empty),empty);});
+test('wall endpoints and collinear paths cannot leak airflow',()=>{assert.ok(intersects({x:0,y:1},{x:2,y:1},{x:1,y:1},{x:1,y:2}));assert.ok(intersects({x:0,y:1},{x:3,y:1},{x:1,y:1},{x:2,y:1}));assert.equal(intersects({x:0,y:0},{x:1,y:0},{x:2,y:0},{x:3,y:0}),false);});
+const irregular={width:8,depth:6,elements:[],boundary:[{x:0,y:0},{x:8,y:0},{x:8,y:2},{x:3,y:2},{x:3,y:6},{x:0,y:6}]};
+test('L-shaped footprint excludes exterior space and computes real area',()=>{assert.equal(floorArea(irregular),28);assert.equal(inside({x:6,y:4},irregular),false);assert.equal(validPoint({x:2.9,y:4},irregular,.35),false);const r=analyze(irregular,config);r.samples.forEach(p=>assert.ok(inside(p,irregular)));r.fans.forEach(p=>assert.ok(validPoint(p,irregular,.35)));});
+test('airflow cannot cross an exterior cutout',()=>{assert.equal(contribution({x:7,y:1,type:'ceiling'},{x:2,y:5},10,irregular),0);assert.ok(contribution({x:1,y:1,type:'ceiling'},{x:1,y:5},10,irregular)>0);});
+test('boundary is saved and invalid polygons rejected',()=>{assert.deepEqual(validatePlan(irregular).boundary,irregular.boundary);assert.throws(()=>validatePlan({...empty,boundary:[{x:0,y:0},{x:8,y:6},{x:0,y:6},{x:8,y:0}]}));assert.throws(()=>validatePlan({...empty,boundary:[{x:0,y:0},{x:1,y:0}]}));});
+test('closing an outline by repeating its first corner works',()=>{const closed=[...irregular.boundary,irregular.boundary[0]];assert.deepEqual(validatePlan({...irregular,boundary:closed}).boundary,irregular.boundary);});
+test('accidental consecutive duplicate clicks are ignored',()=>{const repeated=[irregular.boundary[0],...irregular.boundary];assert.deepEqual(validatePlan({...irregular,boundary:repeated}).boundary,irregular.boundary);});
+test('crossing error identifies the sides to correct',()=>{assert.throws(()=>validatePlan({...empty,boundary:[{x:0,y:0},{x:8,y:6},{x:0,y:6},{x:8,y:0}]}),/Sides 1-2 and 3-4 cross or overlap/);});

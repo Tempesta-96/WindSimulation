@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {windSources,windInfluence} from '../web/wind.js';
+import {analyze} from '../web/model.js';
+const plan={width:6,depth:5,elements:[{type:'window',a:{x:0,y:2},b:{x:0,y:3}},{type:'door',a:{x:6,y:2},b:{x:6,y:3}}]};
+const wind={naturalWind:true,windDirection:0,windStrength:80,windReach:6};
+test('wind enters through upwind exterior openings only',()=>{const sources=windSources(plan,wind);assert.equal(sources.length,1);assert.ok(sources[0].x<.1);const reverse=windSources(plan,{...wind,windDirection:180});assert.equal(reverse.length,1);assert.ok(reverse[0].x>5.9);assert.deepEqual(windSources(plan,{...wind,naturalWind:false}),[]);});
+test('internal openings do not create outside wind',()=>{const p={...plan,elements:[{type:'door',a:{x:3,y:2},b:{x:3,y:3}}]};assert.deepEqual(windSources(p,wind),[]);});
+test('wind decays and is blocked by walls',()=>{const sources=windSources(plan,wind);assert.ok(windInfluence({x:1,y:2.5},sources,plan,wind)>windInfluence({x:4,y:2.5},sources,plan,wind));const p={...plan,elements:[...plan.elements,{type:'wall',a:{x:3,y:0},b:{x:3,y:5}}]};assert.equal(windInfluence({x:4,y:2.5},sources,p,wind),0);assert.equal(windInfluence({x:1,y:2.5},sources,plan,{...wind,windStrength:0}),0);});
+test('optimizer includes natural wind baseline and keeps required ceiling fan',()=>{const config={ceiling:1,standing:0,reach:3,even:70,cooling:80,ventilation:60};const without=analyze(plan,config),withWind=analyze(plan,{...config,...wind});assert.equal(withWind.fans.length,1);assert.equal(withWind.fans[0].type,'ceiling');assert.equal(withWind.naturalWind.sources.length,1);assert.ok(withWind.naturalWind.field.some(v=>v>0));assert.ok(withWind.weightedScore>=without.weightedScore-1e-8);});
