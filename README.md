@@ -10,6 +10,16 @@ python server.py
 
 Open http://localhost:8000. Choose another port with `python server.py --port 8080`.
 
+## GitHub Pages
+
+The app runs entirely in the browser and can be hosted as a static GitHub Pages site; the Python server is only needed for local development.
+
+1. In the repository's **Settings → Pages**, set **Source** to **GitHub Actions**.
+2. Push to `main` or manually run **Deploy Wind Studio to GitHub Pages** from **Actions**.
+3. The workflow runs the regression tests, uploads only `web/`, and publishes it at https://tempesta-96.github.io/WindSimulation/.
+
+Asset and worker paths are relative, so the app supports the repository subpath. Plans remain in browser local storage, separately from plans saved on localhost; use Save plan / Import floor plan to transfer them. Local image backdrops must be imported again. Public hosting publishes the app files; imported plans are processed in the visitor's browser.
+
 ## Use
 
 1. Load the example, create a blank plan, or import PNG/JPG/WebP or saved JSON.
